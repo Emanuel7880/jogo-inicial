@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CYBER RUNNER // Desvie dos Obstáculos</title>
+<style>
+  :root{
+    --neon-cyan: #00fff7;
+    --neon-magenta: #ff00e5;
+    --neon-yellow: #f9ff00;
+    --bg-dark: #05050a;
+    --bg-panel: #0d0d18;
+    --danger: #ff2b4d;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 0%, #14142b 0%, var(--bg-dark) 70%);
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--neon-cyan);
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  #game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  h1 {
+    font-size: clamp(1.2rem, 5vw, 2rem);
+    letter-spacing: 4px;
+    text-shadow: 0 0 8px var(--neon-cyan), 0 0 20px var(--neon-cyan);
+    text-align: center;
+  }
+
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 0.9rem;
+    text-shadow: 0 0 6px var(--neon-magenta);
+    color: var(--neon-magenta);
+    padding: 0 5px;
+  }
+
+  #scene-display {
+    color: var(--neon-yellow);
+    text-shadow: 0 0 6px var(--neon-yellow);
+    letter-spacing: 2px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    width: 100%;
+    border: 2px solid var(--neon-cyan);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 255, 247, 0.35), inset 0 0 20px rgba(0, 255, 247, 0.08);
+    background: var(--bg-panel);
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: linear-gradient(180deg, #0d0d18 0%, #05050a 100%);
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(5, 5, 10, 0.85);
+    text-align: center;
+    padding: 20px;
+  }
+
+  #overlay.hidden { display: none; }
+
+  .screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .screen.hidden { display: none; }
+
+  #overlay h2 {
+    font-size: 1.4rem;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 10px var(--neon-yellow);
+  }
+
+  #overlay p { color: #ccc; font-size: 0.9rem; max-width: 380px; line-height: 1.5; }
+
+  .menu-selection { font-size: 0.8rem; color: #ccc; }
+  .menu-selection span { color: var(--neon-yellow); }
+
+  .menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 260px;
+  }
+
+  #character-list, #difficulty-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .character-card, .difficulty-btn {
+    border: 2px solid var(--neon-cyan);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: left;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--neon-cyan);
+    font-family: inherit;
+    transition: transform 0.1s ease;
+  }
+
+  .character-card.selected, .difficulty-btn.selected {
+    box-shadow: 0 0 14px var(--neon-cyan);
+    background: rgba(0, 255, 247, 0.2);
+    color: #fff;
+  }
+
+  .character-card h3 { font-size: 0.95rem; margin-bottom: 4px; }
+  .character-card p { font-size: 0.75rem; color: #ccc; line-height: 1.3; max-width: none; }
+
+  button {
+    font-family: inherit;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    padding: 10px 26px;
+    background: transparent;
+    border: 2px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    border-radius: 6px;
+    cursor: pointer;
+    text-shadow: 0 0 6px var(--neon-cyan);
+    transition: all 0.15s ease;
+  }
+
+  button:hover, button:active {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 18px var(--neon-cyan);
+  }
+
+  #mobile-controls {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+    justify-content: center;
+    padding: 5px 0;
+  }
+
+  #mobile-controls button {
+    flex: 1;
+    max-width: 100px;
+    height: 60px;
+    padding: 0;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 255, 247, 0.05);
+    touch-action: manipulation;
+  }
+
+  footer {
+    font-size: 0.7rem;
+    color: #444;
+    text-align: center;
+    margin-top: 5px;
+  }
+
+  @media (min-width: 769px) {
+    #mobile-controls { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <h1>&lt; CYBER RUNNER /&gt;</h1>
+
+  <div id="hud">
+    <span id="score-display">SCORE: 0</span>
+    <span id="scene-display">NOITE</span>
+    <span id="best-display">RECORDE: 0</span>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="gameCanvas" width="640" height="400"></canvas>
+
+    <div id="overlay">
+      <div id="screen-menu" class="screen">
+        <h2>CYBER RUNNER</h2>
+        <p class="menu-selection">
+          Personagem: <span id="menu-char-name">CYBER RUNNER</span><br>
+          Dificuldade: <span id="menu-diff-name">NORMAL</span>
+        </p>
+        <p style="font-size:0.75rem; color:#999; max-width:320px;">
+          ← → / A D ou botões virtuais para mover.<br>ESPAÇO, ↑ ou ▲ para pular.<br>
+          Colete <span style="color:#00fff7">◆ (Bônus)</span> e <span style="color:#f9ff00">⏱ (Lento)</span>.
+        </p>
+        <div class="menu-buttons">
+          <button id="btn-play">JOGAR</button>
+          <button id="btn-open-characters">PERSONAGEM</button>
+          <button id="btn-open-difficulty">DIFICULDADE</button>
+          <button id="btn-open-credits">CRÉDITOS</button>
+        </div>
+      </div>
+
+      <div id="screen-characters" class="screen hidden">
+        <h2>ESCOLHA SEU RUNNER</h2>
+        <div id="character-list">
+          <div class="character-card selected" data-char="runner">
+            <h3>CYBER RUNNER</h3>
+            <p>Velocidade equilibrada e ótimos reflexos no ambiente urbano.</p>
+          </div>
+          <div class="character-card" data-char="neon">
+            <h3>NEON PHANTOM</h3>
+            <p>Ágil e veloz, mas a gravidade afeta mais sua flutuação.</p>
+          </div>
+        </div>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-difficulty" class="screen hidden">
+        <h2>DIFICULDADE</h2>
+        <div id="difficulty-list">
+          <button class="difficulty-btn selected" data-diff="normal">NORMAL</button>
+          <button class="difficulty-btn" data-diff="hard">HARDCORE</button>
+        </div>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-credits" class="screen hidden">
+        <h2>CRÉDITOS</h2>
+        <p>
+          Cyber Runner — criado com HTML5 Canvas e JS puro.<br>
+          Código adaptado para suporte Mobile Touch.<br>
+          Estilo visual: Cyberpunk / Retrô Runner.
+        </p>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-gameover" class="screen hidden">
+        <h2>CONEXÃO PERDIDA</h2>
+        <p id="gameover-text">Score final: 0</p>
+        <div class="menu-buttons">
+          <button id="btn-retry">JOGAR NOVAMENTE</button>
+          <button id="btn-gameover-menu">MENU</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mobile-controls">
+    <button id="btn-left">◀</button>
+    <button id="btn-jump">▲</button>
+    <button id="btn-right">▶</button>
+  </div>
+
+  <footer>Arquitetura modular // edite CONFIG para ajustar a dificuldade</footer>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// ---------- 1. CONFIG ----------
+const CONFIG = {
+  canvasWidth: 640,
+  canvasHeight: 400,
+  groundY: 340,
+  player: {
+    width: 30,
+    height: 30,
+    x: 80,
+    moveSpeed: 5,
+    jumpForce: 12,
+    gravity: 0.6
+  },
+  obstacles: {
+    baseSpeed: 4,
+    spawnInterval: 1200
+  }
+};
+
+// ---------- 2. STATE ----------
+let state = {
+  isPlaying: false,
+  score: 0,
+  highScore: 0,
+  currentScene: "NOITE",
+  gameSpeed: CONFIG.obstacles.baseSpeed,
+  lastSpawnTime: 0,
+  selectedChar: "runner",
+  selectedDiff: "normal"
+};
+
+// Teclado e Controles Virtuais
+let keys = { left: false, right: false, jump: false };
+
+// Entidades
+let player = {
+  x: CONFIG.player.x,
+  y: CONFIG.groundY - CONFIG.player.height,
+  width: CONFIG.player.width,
+  height: CONFIG.player.height,
+  vy: 0,
+  isJumping: false
+};
+
+let obstacles = [];
+
+// ---------- 3. INPUT (Teclado + Touch Mobile) ----------
+window.addEventListener('keydown', e => {
+  if(e.code === 'KeyA' || e.key === 'ArrowLeft') keys.left = true;
+  if(e.code === 'KeyD' || e.key === 'ArrowRight') keys.right = true;
+  if(e.code === 'Space' || e.key === 'ArrowUp') { keys.jump = true; e.preventDefault(); }
+});
+
+window.addEventListener('keyup', e => {
+  if(e.code === 'KeyA' || e.key === 'ArrowLeft') keys.left = false;
+  if(e.code === 'KeyD' || e.key === 'ArrowRight') keys.right = false;
+  if(e.code === 'Space' || e.key === 'ArrowUp') keys.jump = false;
+});
+
+// Vinculando botões mobile (Suporta múltiplos toques simultâneos)
+const setupMobileButton = (id, action) => {
+  const btn = document.getElementById(id);
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[action] = true; });
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[action] = false; });
+  btn.addEventListener('mousedown', () => { keys[action] = true; });
+  window.addEventListener('mouseup', () => { keys[action] = false; });
+};
+
+setupMobileButton('btn-left', 'left');
+setupMobileButton('btn-right', 'right');
+setupMobileButton('btn-jump', 'jump');
+
+// ---------- 4. GAME MECHANICS ----------
+function spawnObstacle() {
+  let types = ['block', 'spike', 'bonus', 'slow'];
