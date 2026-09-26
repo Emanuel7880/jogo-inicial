@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYBER RUNNER // Desvie dos Obstáculos</title>
+<style>
+  :root{
+    --neon-cyan: #00fff7;
+    --neon-magenta: #ff00e5;
+    --neon-yellow: #f9ff00;
+    --bg-dark: #05050a;
+    --bg-panel: #0d0d18;
+    --danger: #ff2b4d;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 0%, #14142b 0%, var(--bg-dark) 70%);
+    font-family: 'Courier New', Courier, monospace;
+    color: var(--neon-cyan);
+    padding: 20px;
+  }
+
+  #game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  h1 {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    letter-spacing: 4px;
+    text-shadow: 0 0 8px var(--neon-cyan), 0 0 20px var(--neon-cyan);
+    text-align: center;
+  }
+
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 1rem;
+    text-shadow: 0 0 6px var(--neon-magenta);
+    color: var(--neon-magenta);
+  }
+
+  #scene-display {
+    color: var(--neon-yellow);
+    text-shadow: 0 0 6px var(--neon-yellow);
+    letter-spacing: 2px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    width: 100%;
+    border: 2px solid var(--neon-cyan);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 255, 247, 0.35), inset 0 0 20px rgba(0, 255, 247, 0.08);
+    background: var(--bg-panel);
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: linear-gradient(180deg, #0d0d18 0%, #05050a 100%);
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* flex-start (em vez de center) evita o "flexbug" onde conteúdo
+       centralizado que ultrapassa a altura do container fica preso fora
+       da área alcançável por scroll — por isso alguns botões pareciam
+       sumir/travar no mobile. */
+    justify-content: flex-start;
+    gap: 14px;
+    background: rgba(5, 5, 10, 0.85);
+    text-align: center;
+    padding: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* rolagem suave em iOS mais antigo */
+  }
+
+  #overlay.hidden { display: none; }
+
+  .screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin: auto 0; /* centraliza quando cabe; quando não cabe, os auto margins
+                        colapsam e o conteúdo fica no topo, totalmente
+                        alcançável por scroll */
+  }
+
+  .screen.hidden { display: none; }
+
+  #overlay h2 {
+    font-size: 1.4rem;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 10px var(--neon-yellow);
+  }
+
+  .victory-title {
+    color: #ffe066 !important;
+    text-shadow: 0 0 14px #ffe066, 0 0 30px #ffb347 !important;
+    font-size: 1.6rem !important;
+    letter-spacing: 3px;
+  }
+
+  #overlay p { color: #ccc; font-size: 0.9rem; max-width: 380px; line-height: 1.5; }
+
+  .menu-selection { font-size: 0.8rem; color: #ccc; }
+  .menu-selection span { color: var(--neon-yellow); }
+
+  .menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 260px;
+  }
+
+  #character-list, #difficulty-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .character-card {
+    border: 2px solid;
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: left;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    transition: transform 0.1s ease;
+  }
+
+  .character-card:hover { transform: scale(1.02); }
+
+  .character-card.selected {
+    box-shadow: 0 0 14px currentColor;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .character-card h3 { font-size: 0.95rem; margin-bottom: 4px; }
+  .character-card p { font-size: 0.75rem; color: #ccc; line-height: 1.3; max-width: none; }
+
+  .difficulty-btn {
+    width: 100%;
+    text-align: left;
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    line-height: 1.4;
+  }
+
+  .difficulty-btn.selected {
+    background: var(--neon-cyan);
+    color: #000;
+  }
+
+  #achievement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 380px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .achievement-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: left;
+    opacity: 0.5;
+  }
+
+  .achievement-card.unlocked {
+    border-color: var(--neon-yellow);
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(249, 255, 0, 0.25);
+  }
+
+  .achievement-icon { font-size: 1.5rem; flex-shrink: 0; }
+  .achievement-card h3 { font-size: 0.85rem; margin-bottom: 2px; color: var(--neon-yellow); }
+  .achievement-card p { font-size: 0.7rem; color: #ccc; max-width: none; line-height: 1.3; }
+
+  #achievement-toast {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translate(-50%, -150%);
+    background: rgba(5, 5, 10, 0.92);
+    border: 2px solid var(--neon-yellow);
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.72rem;
+    color: #fff;
+    box-shadow: 0 0 16px rgba(249, 255, 0, 0.4);
+    transition: transform 0.35s ease;
+    z-index: 20;
+    pointer-events: none;
+    max-width: 90%;
+    text-align: left;
+  }
+
+  #achievement-toast.show { transform: translate(-50%, 0); }
+  #achievement-toast .toast-icon { font-size: 1.5rem; }
+  #achievement-toast strong { color: var(--neon-yellow); display: block; font-size: 0.65rem; letter-spacing: 1px; }
+
+  button {
+    font-family: inherit;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    padding: 10px 26px;
+    background: transparent;
+    border: 2px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    border-radius: 6px;
+    cursor: pointer;
+    text-shadow: 0 0 6px var(--neon-cyan);
+    transition: all 0.15s ease;
+  }
+
+  button:hover {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 18px var(--neon-cyan);
+  }
+
+  #mobile-controls {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  #mobile-controls button {
+    flex: 1;
+    max-width: 120px;
+    padding: 14px;
+    font-size: 1.2rem;
+    touch-action: none;      /* impede scroll/zoom do navegador ao tocar */
+    user-select: none;
+  }
+
+  footer {
+    font-size: 0.75rem;
+    color: #555;
+    text-align: center;
+  }
+
+  @media (min-width: 700px) {
+    #mobile-controls { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <h1>&lt; CYBER RUNNER /&gt;</h1>
+
+  <div id="hud">
+    <span id="score-display">SCORE: 0</span>
+    <span id="scene-display">NOITE</span>
+    <span id="best-display">RECORDE: 0</span>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="gameCanvas" width="640" height="400"></canvas>
+
+    <div id="overlay">
+      <div id="screen-menu" class="screen">
+        <h2>CYBER RUNNER</h2>
+        <p class="menu-selection">
+          Personagem: <span id="menu-char-name">—</span><br>
+          Dificuldade: <span id="menu-diff-name">—</span> (meta: <span id="menu-target-score">—</span> pts)<br>
+          Conquistas: <span id="menu-achievements-count">0/0</span>
+        </p>
+        <p style="font-size:0.75rem; color:#999; max-width:320px;">
+          ← → / A D para mover · ESPAÇO ou ↑ para pular.
+          Colete <span style="color:#00fff7">◆</span> e <span style="color:#f9ff00">⏱</span> para ajuda extra.
+        </p>
+        <div class="menu-buttons">
+          <button id="btn-play">JOGAR</button>
+          <button id="btn-open-characters">PERSONAGEM</button>
+          <button id="btn-open-difficulty">DIFICULDADE</button>
+          <button id="btn-open-achievements">CONQUISTAS</button>
+          <button id="btn-open-credits">CRÉDITOS</button>
+        </div>
+      </div>
+
+      <div id="screen-characters" class="screen hidden">
+        <h2>ESCOLHA SEU RUNNER</h2>
+        <div id="character-list"></div>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-difficulty" class="screen hidden">
+        <h2>DIFICULDADE</h2>
+        <div id="difficulty-list"></div>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-achievements" class="screen hidden">
+        <h2>CONQUISTAS</h2>
+        <div id="achievement-list"></div>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-credits" class="screen hidden">
+        <h2>CRÉDITOS</h2>
+        <p>
+          Cyber Runner — criado com HTML5 Canvas e JavaScript puro (Vanilla JS).<br>
+          Código desenvolvido com a ajuda do Claude (Anthropic).<br>
+          Estilo visual: Cyberpunk / Retrô Runner.
+        </p>
+        <button class="back-btn" data-back="menu">VOLTAR</button>
+      </div>
+
+      <div id="screen-gameover" class="screen hidden">
+        <h2>CONEXÃO PERDIDA</h2>
+        <p id="gameover-text"></p>
+        <div class="menu-buttons">
+          <button id="btn-retry">JOGAR NOVAMENTE</button>
+          <button id="btn-gameover-menu">MENU</button>
+        </div>
+      </div>
+
+      <div id="screen-victory" class="screen hidden">
+        <h2 class="victory-title">MISSÃO CUMPRIDA</h2>
+        <p id="victory-text"></p>
+        <div class="menu-buttons">
+          <button id="btn-victory-retry">JOGAR NOVAMENTE</button>
+          <button id="btn-victory-menu">MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="achievement-toast"></div>
+  </div>
+
+  <div id="mobile-controls">
+    <button id="btn-left">◀</button>
+    <button id="btn-jump">▲</button>
+    <button id="btn-right">▶</button>
+  </div>
+
+  <footer>Arquitetura modular // edite CONFIG para ajustar a dificuldade</footer>
+</div>
+
+<script>
+/* ============================================================
+   CYBER RUNNER — Arquitetura modular
+   Seções:
+     1. CONFIG        -> constantes ajustáveis
+     2. STATE          -> estado mutável do jogo
+     3. ENTITIES       -> criação/gerenciamento de player e obstáculos
+     4. INPUT          -> teclado e touch
+     5. UPDATE         -> física, spawns, colisão
+     6. RENDER         -> desenho no canvas
+     7. GAME LOOP       -> requestAnimationFrame
+     8. UI BINDINGS     -> HUD, overlay, botões
+   Pontos de extensão marcados com "// [EXTENSÃO]"
+============================================================ */
+
+// ---------- 1. CONFIG ----------
+const CONFIG = {
+  canvasWidth: 640,
+  canvasHeight: 400,
+
+  groundY: 340,              // altura do "chão" onde o player fica parado
+
+  player: {
+    width: 30,
+    height: 30,
+    x: 80,
+    moveSpeed: 4.5,           // velocidade lateral (px por frame) — reduzida para maior controle
+    jumpForce: 12,            // força inicial do pulo
+    gravity: 0.6,
+    color: '#00fff7'
+  },
+
+  obstacles: {
+    baseSpeed: 4,             // velocidade inicial de queda/avanço
+    speedIncreasePerSecond: 0.03, // dificuldade progressiva
+    spawnIntervalStart: 1100, // ms entre spawns no início
+
+    // Um pulo completo (subida + descida) dura ~667ms com os valores
+    // padrão de jumpForce/gravity. O intervalo mínimo precisa ficar acima
+    // disso com folga, senão o próximo obstáculo pode chegar enquanto o
+    // jogador ainda está no ar — criando combinações impossíveis de desviar.
+    spawnIntervalMin: 800,
+
+    // Cada tipo define sua própria hitbox e comportamento.
+    // [EXTENSÃO] adicione novos tipos aqui — o spawn escolhe um aleatoriamente.
+    types: {
+      spike: {
+        color: '#ff00e5',
+        minWidth: 20, maxWidth: 45,
+        minHeight: 20, maxHeight: 45,
+        floating: false        // fica no chão, precisa pular por cima
+      },
+      drone: {
+        color: '#f9ff00',
+        minWidth: 34, maxWidth: 34,
+        minHeight: 16, maxHeight: 16,
+        floating: true,        // flutua no ar — pular pode causar colisão
+        floatHeight: 65        // distância do chão até a base do drone
+      }
+    }
+  },
+
+  powerUps: {
+    spawnChance: 0.22,         // chance de um spawn virar power-up em vez de obstáculo
+    size: 24,
+    types: {
+      shield: {
+        color: '#00fff7',
+        icon: '◆',
+        duration: 4000          // ms de invencibilidade
+      },
+      slowmo: {
+        color: '#f9ff00',
+        icon: '⏱',
+        duration: 4000,
+        factor: 0.5              // multiplicador de velocidade dos obstáculos
+      }
+    }
+  },
+
+  // Cada personagem altera stats-base e ganha uma característica própria.
+  // [EXTENSÃO] adicione um novo personagem aqui — ele aparece
+  // automaticamente na tela de seleção.
+  characters: {
+    cyan: {
+      id: 'cyan', name: 'CYBER RUNNER', color: '#00fff7',
+      description: 'Equilibrado em tudo. Ótimo para aprender os padrões.',
+      moveSpeedMult: 1, jumpForceMult: 1, powerUpChanceBonus: 0, startShieldMs: 0
+    },
+    magenta: {
+      id: 'magenta', name: 'BLINDADO', color: '#ff00e5',
+      description: 'Começa cada corrida com 3s de escudo grátis. Um pouco mais lento.',
+      moveSpeedMult: 0.88, jumpForceMult: 1, powerUpChanceBonus: 0, startShieldMs: 3000
+    },
+    yellow: {
+      id: 'yellow', name: 'GHOST JUMPER', color: '#f9ff00',
+      description: 'Pulo bem mais alto e atrai mais power-ups. Cuidado extra com drones.',
+      moveSpeedMult: 1, jumpForceMult: 1.25, powerUpChanceBonus: 0.08, startShieldMs: 0
+    }
+  },
+
+  // Multiplicadores aplicados sobre os valores-base de obstacles, e a meta
+  // de pontuação para VENCER o jogo nessa dificuldade (targetScore). Modos
+  // mais fáceis pedem mais pontos porque o ritmo é mais lento — o tempo
+  // até a vitória fica parecido entre as três dificuldades.
+  // [EXTENSÃO] novas dificuldades aparecem automaticamente na tela de seleção.
+  difficulties: {
+    facil: {
+      id: 'facil', name: 'FÁCIL',
+      description: 'Ritmo tranquilo para aprender os padrões.',
+      speedMult: 0.8, speedIncreaseMult: 0.7, spawnIntervalMult: 1.3,
+      targetScore: 3000
+    },
+    normal: {
+      id: 'normal', name: 'NORMAL',
+      description: 'O desafio padrão do Cyber Runner.',
+      speedMult: 1, speedIncreaseMult: 1, spawnIntervalMult: 1,
+      targetScore: 2000
+    },
+    dificil: {
+      id: 'dificil', name: 'DIFÍCIL',
+      description: 'Obstáculos rápidos e frequentes desde o início.',
+      speedMult: 1.25, speedIncreaseMult: 1.3, spawnIntervalMult: 0.85,
+      targetScore: 1500
+    }
+  },
+
+  // Conquistas: cada uma tem uma condição própria, avaliada contra o placar
+  // da corrida atual (ctx.score) e as estatísticas acumuladas entre partidas
+  // (ctx.stats). [EXTENSÃO] adicione uma nova aqui — ela aparece
+  // automaticamente na tela de conquistas e é checada sozinha.
+  achievements: [
+    {
+      id: 'first_run', name: 'PRIMEIRO CONTATO', icon: '🚀',
+      description: 'Termine sua primeira corrida.',
+      check: ctx => ctx.stats.gamesPlayed >= 1
+    },
+    {
+      id: 'dawn', name: 'CAÇADOR DE NEON', icon: '🌅',
+      description: 'Alcance 100 pontos em uma corrida.',
+      check: ctx => ctx.score >= 100
+    },
+    {
+      id: 'day', name: 'FILHO DO SOL', icon: '☀️',
+      description: 'Alcance 250 pontos em uma corrida.',
+      check: ctx => ctx.score >= 250
+    },
+    {
+      id: 'storm', name: 'OLHO DO CICLONE', icon: '⛈️',
+      description: 'Alcance 500 pontos em uma corrida.',
+      check: ctx => ctx.score >= 500
+    },
+    {
+      id: 'legend', name: 'LENDA CYBER', icon: '👑',
+      description: 'Alcance 1000 pontos em uma corrida.',
+      check: ctx => ctx.score >= 1000
+    },
+    {
+      id: 'collector', name: 'COLECIONADOR', icon: '💎',
+      description: 'Colete 10 power-ups no total (todas as partidas).',
+      check: ctx => ctx.stats.powerUpsCollected >= 10
+    },
+    {
+      id: 'shield_user', name: 'ESCUDO ATIVADO', icon: '🛡️',
+      description: 'Use um escudo pela primeira vez.',
+      check: ctx => ctx.stats.shieldUsed
+    },
+    {
+      id: 'slowmo_user', name: 'MESTRE DO TEMPO', icon: '⏱️',
+      description: 'Use um slow-mo pela primeira vez.',
+      check: ctx => ctx.stats.slowmoUsed
+    },
+    {
+      id: 'polyglot', name: 'POLIGLOTA', icon: '🎭',
+      description: 'Jogue com os 3 personagens diferentes.',
+      check: ctx => ctx.stats.charactersUsed.length >= 3
+    },
+    {
+      id: 'veteran', name: 'VETERANO', icon: '🎮',
+      description: 'Jogue 10 partidas.',
+      check: ctx => ctx.stats.gamesPlayed >= 10
+    },
+    {
+      id: 'clear_facil', name: 'SOBREVIVENTE', icon: '🥉',
+      description: 'Vença o modo Fácil (3000 pontos).',
+      check: ctx => ctx.stats.difficultiesCompleted.includes('facil')
+    },
+    {
+      id: 'clear_normal', name: 'ESTRATEGISTA', icon: '🥈',
+      description: 'Vença o modo Normal (2000 pontos).',
+      check: ctx => ctx.stats.difficultiesCompleted.includes('normal')
+    },
+    {
+      id: 'clear_dificil', name: 'CAMPEÃO CYBER', icon: '🥇',
+      description: 'Vença o modo Difícil (1500 pontos).',
+      check: ctx => ctx.stats.difficultiesCompleted.includes('dificil')
+    }
+  ],
+
+  // Progressão de cenário por pontuação. A transição entre um estágio e o
+  // próximo é interpolada suavemente (ver getSceneBlend/lerpColor).
+  // [EXTENSÃO] adicione novos estágios aqui — basta indicar o threshold.
+  scenes: [
+    {
+      threshold: 0, name: 'NOITE',
+      skyTop: '#05050a', skyBottom: '#14142b',
+      gridColor: '#00fff7', gridAlpha: 0.06,
+      groundColor: '#f9ff00', sunColor: null,
+      showStars: true, storm: false
+    },
+    {
+      threshold: 100, name: 'AMANHECER',
+      skyTop: '#1a1035', skyBottom: '#ff8c69',
+      gridColor: '#ff00e5', gridAlpha: 0.08,
+      groundColor: '#ff00e5', sunColor: '#ffb347',
+      showStars: false, storm: false
+    },
+    {
+      threshold: 250, name: 'DIA',
+      skyTop: '#1e3a5f', skyBottom: '#7ec8e3',
+      gridColor: '#ffffff', gridAlpha: 0.10,
+      groundColor: '#00fff7', sunColor: '#fff176',
+      showStars: false, storm: false
+    },
+    {
+      threshold: 500, name: 'TEMPESTADE NEON',
+      skyTop: '#1a0025', skyBottom: '#ff2b4d',
+      gridColor: '#f9ff00', gridAlpha: 0.12,
+      groundColor: '#ff2b4d', sunColor: null,
+      showStars: false, storm: true
+    }
+  ],
+
+  cityPatternWidth: 960,
+
+  scorePerSecond: 10
+};
+
+// ---------- 2. STATE ----------
+const STATE = {
+  running: false,
+  gameOver: false,
+  score: 0,
+  best: loadBest(),
+  elapsedTime: 0,           // segundos de sobrevivência
+  lastSpawnTime: 0,
+  currentSpawnInterval: CONFIG.obstacles.spawnIntervalStart,
+  obstacles: [],
+  powerUps: [],              // power-ups presentes na tela, esperando serem coletados
+  activePowerUps: {          // efeitos ativos no jogador: valor = ms restantes
+    shield: 0,
+    slowmo: 0
+  },
+  keys: {},                 // teclas pressionadas no momento
+  lastFrameTime: 0,
+
+  sceneBlend: null,          // { from, to, t } — calculado a cada frame
+  lightningAlpha: 0,
+  lightningTimer: 2500,
+  stars: [],
+  buildings: [],
+
+  uiScreen: 'menu',          // menu | characters | difficulty | achievements | credits | gameover
+  selectedCharacter: 'cyan',
+  selectedDifficulty: 'normal',
+  effective: null,           // stats combinados de personagem + dificuldade (ver computeEffectiveConfig)
+
+  stats: null,                // estatísticas acumuladas entre partidas (ver loadStats)
+  unlockedAchievements: []    // ids das conquistas já desbloqueadas (ver loadAchievements)
+};
+
+function loadBest() {
+  try {
+    return parseInt(localStorage.getItem('cyberRunnerBest'), 10) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function saveBest(value) {
+  try {
+    localStorage.setItem('cyberRunnerBest', value);
+  } catch (e) { /* localStorage indisponível — ignora silenciosamente */ }
+}
+
+function loadStats() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('cyberRunnerStats'));
+    return {
+      gamesPlayed: raw?.gamesPlayed || 0,
+      powerUpsCollected: raw?.powerUpsCollected || 0,
+      shieldUsed: !!raw?.shieldUsed,
+      slowmoUsed: !!raw?.slowmoUsed,
+      charactersUsed: Array.isArray(raw?.charactersUsed) ? raw.charactersUsed : [],
+      difficultiesCompleted: Array.isArray(raw?.difficultiesCompleted) ? raw.difficultiesCompleted : [],
+      maxScore: raw?.maxScore || 0
+    };
+  } catch (e) {
+    return { gamesPlayed: 0, powerUpsCollected: 0, shieldUsed: false, slowmoUsed: false, charactersUsed: [], difficultiesCompleted: [], maxScore: 0 };
+  }
+}
+
+function saveStats() {
+  try { localStorage.setItem('cyberRunnerStats', JSON.stringify(STATE.stats)); } catch (e) {}
+}
+
+function loadAchievements() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('cyberRunnerAchievements'));
+    return Array.isArray(raw) ? raw : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAchievements() {
+  try { localStorage.setItem('cyberRunnerAchievements', JSON.stringify(STATE.unlockedAchievements)); } catch (e) {}
+}
+
+STATE.stats = loadStats();
+STATE.unlockedAchievements = loadAchievements();
+
+// Roda todas as condições de CONFIG.achievements contra o estado atual e
+// desbloqueia (com toast) qualquer uma que ainda não tinha sido conquistada.
+function checkAchievements() {
+  const ctx = { score: STATE.score, stats: STATE.stats };
+  CONFIG.achievements.forEach(ach => {
+    if (STATE.unlockedAchievements.includes(ach.id)) return;
+    if (ach.check(ctx)) {
+      STATE.unlockedAchievements.push(ach.id);
+      saveAchievements();
+      showAchievementToast(ach);
+      updateAchievementSummary();
+    }
+  });
+}
+
+// ---------- 3. ENTITIES ----------
+const player = {
+  x: CONFIG.player.x,
+  y: CONFIG.groundY - CONFIG.player.height,
+  width: CONFIG.player.width,
+  height: CONFIG.player.height,
+  velocityY: 0,
+  isJumping: false
+};
+
+function resetPlayer() {
+  player.x = CONFIG.player.x;
+  player.y = CONFIG.groundY - CONFIG.player.height;
+  player.velocityY = 0;
+  player.isJumping = false;
+}
+
+function generateStars() {
+  const arr = [];
+  for (let i = 0; i < 40; i++) {
+    arr.push({
+      x: randRange(0, CONFIG.canvasWidth),
+      y: randRange(0, CONFIG.groundY - 60),
+      r: Math.random() * 1.5 + 0.5,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  return arr;
+}
+
+function generateBuildings() {
+  const arr = [];
+  let x = 0;
+  while (x < CONFIG.cityPatternWidth) {
+    const width = randRange(30, 70);
+    const height = randRange(40, 140);
+    arr.push({ x, width, height });
+    x += width + randRange(10, 30);
+  }
+  return arr;
+}
+
+STATE.stars = generateStars();
+STATE.buildings = generateBuildings();
+
+// Combina os stats-base de CONFIG.player/obstacles com os multiplicadores
+// do personagem e da dificuldade escolhidos. O resultado fica em
+// STATE.effective e é o que o resto do jogo (física, spawns, cores) lê.
+function computeEffectiveConfig(characterId, difficultyId) {
+  const character = CONFIG.characters[characterId];
+  const difficulty = CONFIG.difficulties[difficultyId];
+
+  const jumpForce = CONFIG.player.jumpForce * character.jumpForceMult;
+
+  // Duração aproximada de um pulo completo (subida + descida), em ms —
+  // agora calculada em tempo real de verdade, já que a física deixou de
+  // depender da taxa de quadros (ver dtScale). O intervalo mínimo de
+  // spawn nunca pode ficar abaixo disso (+ uma pequena folga de reação),
+  // ou o jogo cria combinações impossíveis de desviar.
+  //
+  // Antes essa folga era de 150ms, o que empurrava o piso para ~817ms —
+  // valor tão alto que o modo DIFÍCIL (que pedia ~680ms) e o NORMAL
+  // (~800ms) acabavam convergindo para o mesmo piso de segurança,
+  // fazendo o difícil parecer igual ao normal. Com 60ms de folga o piso
+  // cai para ~727ms: o normal continua em ~800ms (não é afetado), mas o
+  // difícil agora realmente spawna mais rápido que o normal.
+  const jumpDurationMs = (2 * jumpForce / CONFIG.player.gravity) * (1000 / 60);
+  const safeSpawnIntervalMin = jumpDurationMs + 60; // folga de reação
+
+  return {
+    playerColor: character.color,
+    moveSpeed: CONFIG.player.moveSpeed * character.moveSpeedMult,
+    jumpForce,
+    obstacleBaseSpeed: CONFIG.obstacles.baseSpeed * difficulty.speedMult,
+    speedIncreasePerSecond: CONFIG.obstacles.speedIncreasePerSecond * difficulty.speedIncreaseMult,
+    spawnIntervalStart: CONFIG.obstacles.spawnIntervalStart * difficulty.spawnIntervalMult,
+    spawnIntervalMin: Math.max(CONFIG.obstacles.spawnIntervalMin * difficulty.spawnIntervalMult, safeSpawnIntervalMin),
+    powerUpSpawnChance: CONFIG.powerUps.spawnChance + character.powerUpChanceBonus,
+    startShieldMs: character.startShieldMs,
+    targetScore: difficulty.targetScore
+  };
+}
+
+STATE.effective = computeEffectiveConfig(STATE.selectedCharacter, STATE.selectedDifficulty);
+
+function spawnObstacle() {
+  const typeKeys = Object.keys(CONFIG.obstacles.types);
+  const typeName = typeKeys[randRange(0, typeKeys.length - 1)];
+  const typeCfg = CONFIG.obstacles.types[typeName];
+
+  const w = randRange(typeCfg.minWidth, typeCfg.maxWidth);
+  const h = randRange(typeCfg.minHeight, typeCfg.maxHeight);
+  const y = typeCfg.floating
+    ? CONFIG.groundY - typeCfg.floatHeight - h
+    : CONFIG.groundY - h;
+
+  STATE.obstacles.push({
+    type: typeName,
+    x: CONFIG.canvasWidth,
+    y,
+    width: w,
+    height: h,
+    color: typeCfg.color,
+    speed: STATE.effective.obstacleBaseSpeed + STATE.elapsedTime * STATE.effective.speedIncreasePerSecond
+  });
+
+  // [EXTENSÃO] adicione uma nova entrada em CONFIG.obstacles.types
+  // e ela passa a ser sorteada automaticamente aqui.
+}
+
+function spawnPowerUp() {
+  const typeKeys = Object.keys(CONFIG.powerUps.types);
+  const typeName = typeKeys[randRange(0, typeKeys.length - 1)];
+  const typeCfg = CONFIG.powerUps.types[typeName];
+  const size = CONFIG.powerUps.size;
+
+  STATE.powerUps.push({
+    type: typeName,
+    x: CONFIG.canvasWidth,
+    y: CONFIG.groundY - size - randRange(0, 60), // altura variável, às vezes exige pulo
+    width: size,
+    height: size,
+    color: typeCfg.color,
+    icon: typeCfg.icon,
+    speed: STATE.effective.obstacleBaseSpeed + STATE.elapsedTime * STATE.effective.speedIncreasePerSecond
+  });
+
+  // [EXTENSÃO] novos power-ups: adicione em CONFIG.powerUps.types e
+  // trate o efeito dentro de applyPowerUp().
+}
+
+function applyPowerUp(typeName) {
+  const typeCfg = CONFIG.powerUps.types[typeName];
+  STATE.activePowerUps[typeName] = typeCfg.duration;
+
+  STATE.stats.powerUpsCollected++;
+  if (typeName === 'shield') STATE.stats.shieldUsed = true;
+  if (typeName === 'slowmo') STATE.stats.slowmoUsed = true;
+  saveStats();
+  checkAchievements();
+
+  // [EXTENSÃO] efeitos instantâneos (ex: pontos bônus) podem ser
+  // aplicados aqui diretamente, sem usar activePowerUps.
+}
+
+function randRange(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// ---------- 4. INPUT ----------
+window.addEventListener('keydown', (e) => {
+  STATE.keys[e.code] = true;
+  if (e.code === 'Space' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    tryJump();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  STATE.keys[e.code] = false;
+});
+
+function tryJump() {
+  if (!STATE.running) return;
+  if (!player.isJumping) {
+    player.velocityY = -STATE.effective.jumpForce;
+    player.isJumping = true;
+  }
+}
+
+// Controles touch/mobile — unificados com Pointer Events, que cobrem
+// mouse, caneta e toque com uma única API (evita o clássico bug de
+// "toque dispara o pulo duas vezes" causado por touchstart + click).
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+const btnJump = document.getElementById('btn-jump');
+
+function bindHold(el, keyCode) {
+  const start = (e) => { e.preventDefault(); STATE.keys[keyCode] = true; };
+  const end = (e) => { e.preventDefault(); STATE.keys[keyCode] = false; };
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('pointerleave', end);
+  el.addEventListener('contextmenu', (e) => e.preventDefault()); // evita menu de toque longo
+}
+
+bindHold(btnLeft, 'ArrowLeft');
+bindHold(btnRight, 'ArrowRight');
+btnJump.addEventListener('pointerdown', (e) => { e.preventDefault(); tryJump(); });
+btnJump.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// [EXTENSÃO] adicione novas ações aqui (ex: dash, ataque) seguindo o
+// mesmo padrão de STATE.keys + função dedicada.
+
+// ---------- 5. UPDATE ----------
+
+// Toda a física/movimento abaixo foi originalmente calibrada assumindo
+// ~60 quadros por segundo (valores "por frame"). Em telas de 90Hz/120Hz
+// (comuns em celulares atuais), o loop roda mais vezes por segundo — sem
+// essa normalização, obstáculos e o pulo se movem mais rápido em tempo
+// real, enquanto o spawn (que já usa tempo real) continua no mesmo ritmo.
+// Resultado: menos obstáculos na tela ao mesmo tempo, parecendo mais fácil.
+// dtScale corrige isso: em 60fps ele vale ~1 (comportamento original); em
+// 120fps vale ~0.5 por quadro (dois quadros somam o mesmo tanto de 1).
+const TARGET_FRAME_MS = 1000 / 60;
+const MAX_DT_SCALE = 3; // evita "teleporte" se a aba ficar em segundo plano
+
+function getDtScale(deltaMs) {
+  if (!deltaMs) return 1; // primeiro frame: sem referência, assume 1x
+  return clamp(deltaMs / TARGET_FRAME_MS, 0, MAX_DT_SCALE);
+}
+
+function updatePlayer(deltaMs) {
+  const dtScale = getDtScale(deltaMs);
+
+  // Movimento lateral
+  if (STATE.keys['ArrowLeft'] || STATE.keys['KeyA']) {
+    player.x -= STATE.effective.moveSpeed * dtScale;
+  }
+  if (STATE.keys['ArrowRight'] || STATE.keys['KeyD']) {
+    player.x += STATE.effective.moveSpeed * dtScale;
+  }
+  player.x = clamp(player.x, 0, CONFIG.canvasWidth - player.width);
+
+  // Física do pulo
+  player.velocityY += CONFIG.player.gravity * dtScale;
+  player.y += player.velocityY * dtScale;
+
+  const floorY = CONFIG.groundY - player.height;
+  if (player.y >= floorY) {
+    player.y = floorY;
+    player.velocityY = 0;
+    player.isJumping = false;
+  }
+}
+
+function updateObstacles(deltaMs) {
+  const dtScale = getDtScale(deltaMs);
+  const speedMultiplier = STATE.activePowerUps.slowmo > 0 ? CONFIG.powerUps.types.slowmo.factor : 1;
+
+  for (let i = STATE.obstacles.length - 1; i >= 0; i--) {
+    const obs = STATE.obstacles[i];
+    obs.x -= obs.speed * speedMultiplier * dtScale;
+
+    if (obs.x + obs.width < 0) {
+      STATE.obstacles.splice(i, 1);
+      continue;
+    }
+
+    if (checkObstacleCollision(player, obs)) {
+      if (STATE.activePowerUps.shield > 0) {
+        // escudo ativo: destrói o obstáculo em vez de encerrar o jogo
+        STATE.obstacles.splice(i, 1);
+        continue;
+      }
+      endGame();
+      return;
+    }
+  }
+}
+
+function updatePowerUps(deltaMs) {
+  const dtScale = getDtScale(deltaMs);
+  const speedMultiplier = STATE.activePowerUps.slowmo > 0 ? CONFIG.powerUps.types.slowmo.factor : 1;
+
+  for (let i = STATE.powerUps.length - 1; i >= 0; i--) {
+    const p = STATE.powerUps[i];
+    p.x -= p.speed * speedMultiplier * dtScale;
+
+    if (p.x + p.width < 0) {
+      STATE.powerUps.splice(i, 1);
+      continue;
+    }
+
+    if (checkCollision(player, p)) {
+      applyPowerUp(p.type);
+      STATE.powerUps.splice(i, 1);
+    }
+  }
+}
+
+function updatePowerUpTimers(deltaMs) {
+  for (const key in STATE.activePowerUps) {
+    if (STATE.activePowerUps[key] > 0) {
+      STATE.activePowerUps[key] = Math.max(0, STATE.activePowerUps[key] - deltaMs);
+    }
+  }
+}
+
+function checkCollision(a, b) {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+// --- Colisão precisa para obstáculos não-retangulares ---
+// O espinho é desenhado como triângulo; usar a caixa (AABB) inteira para
+// colisão faz o jogador "bater" nas quinas vazias perto da base. Aqui
+// verificamos a interseção real entre o retângulo do player e o triângulo
+// via SAT (Separating Axis Theorem).
+function getRectCorners(r) {
+  return [
+    { x: r.x, y: r.y },
+    { x: r.x + r.width, y: r.y },
+    { x: r.x + r.width, y: r.y + r.height },
+    { x: r.x, y: r.y + r.height }
+  ];
+}
+
+function getSpikeTriangle(obs) {
+  return [
+    { x: obs.x + obs.width / 2, y: obs.y },       // ponta
+    { x: obs.x + obs.width, y: obs.y + obs.height }, // base direita
+    { x: obs.x, y: obs.y + obs.height }               // base esquerda
+  ];
+}
+
+function projectPolygon(points, axis) {
+  let min = Infinity, max = -Infinity;
+  points.forEach(p => {
+    const proj = p.x * axis.x + p.y * axis.y;
+    if (proj < min) min = proj;
+    if (proj > max) max = proj;
+  });
+  return { min, max };
+}
+
+function polygonsIntersect(polyA, polyB) {
+  for (const poly of [polyA, polyB]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i];
+      const p2 = poly[(i + 1) % poly.length];
+      const edge = { x: p2.x - p1.x, y: p2.y - p1.y };
+      const len = Math.hypot(edge.x, edge.y) || 1;
+      const axis = { x: -edge.y / len, y: edge.x / len }; // normal do eixo
+
+      const projA = projectPolygon(polyA, axis);
+      const projB = projectPolygon(polyB, axis);
+      if (projA.max < projB.min || projB.max < projA.min) return false; // eixo separador encontrado
+    }
+  }
+  return true;
+}
+
+function checkObstacleCollision(player, obs) {
+  if (obs.type === 'spike') {
+    return polygonsIntersect(getRectCorners(player), getSpikeTriangle(obs));
+  }
+  // drone e demais tipos: caixa retangular (aproxima bem a elipse do corpo)
+  return checkCollision(player, obs);
+}
+
+// [EXTENSÃO] novo tipo com formato próprio? Defina sua forma (ex: getXTriangle)
+// e trate em checkObstacleCollision().
+
+function updateSpawning(now) {
+  if (now - STATE.lastSpawnTime > STATE.currentSpawnInterval) {
+    if (Math.random() < STATE.effective.powerUpSpawnChance) {
+      spawnPowerUp();
+    } else {
+      spawnObstacle();
+    }
+    STATE.lastSpawnTime = now;
+
+    // dificuldade progressiva: intervalo de spawn diminui com o tempo,
+    // mas nunca abaixo do mínimo seguro calculado em STATE.effective
+    STATE.currentSpawnInterval = Math.max(
+      STATE.effective.spawnIntervalMin,
+      STATE.effective.spawnIntervalStart - STATE.elapsedTime * 15
+    );
+  }
+}
+
+function updateScore(deltaMs) {
+  STATE.elapsedTime += deltaMs / 1000;
+  STATE.score = Math.floor(STATE.elapsedTime * CONFIG.scorePerSecond);
+}
+
+// Descobre entre quais dois estágios de cenário estamos e o progresso (0-1)
+// da transição, usado para interpolar cores suavemente.
+function getSceneBlend(score) {
+  const scenes = CONFIG.scenes;
+  let i = 0;
+  for (let s = 0; s < scenes.length; s++) {
+    if (score >= scenes[s].threshold) i = s;
+  }
+  const from = scenes[i];
+  const to = scenes[i + 1] || scenes[i];
+  const range = to.threshold - from.threshold;
+  const t = range > 0 ? clamp((score - from.threshold) / range, 0, 1) : 1;
+  return { from, to, t };
+}
+
+function updateWeather(deltaMs) {
+  const active = STATE.sceneBlend.to;
+  if (!active.storm) {
+    STATE.lightningAlpha = 0;
+    return;
+  }
+
+  STATE.lightningTimer -= deltaMs;
+  if (STATE.lightningTimer <= 0) {
+    STATE.lightningAlpha = 0.5;
+    STATE.lightningTimer = randRange(1500, 4000);
+  } else {
+    STATE.lightningAlpha *= 0.85; // decaimento rápido do flash
+  }
+}
+
+// [EXTENSÃO] crie novas funções update*() (ex: updateParticles) e
+// chame-as dentro de gameLoop().
+
+// ---------- 6. RENDER ----------
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function render() {
+  ctx.clearRect(0, 0, CONFIG.canvasWidth, CONFIG.canvasHeight);
+  STATE.sceneBlend = getSceneBlend(STATE.score);
+
+  drawBackground();
+  drawStars();
+  drawCelestialBody();
+  drawCityline();
+  drawGrid();
+  drawGround();
+  drawPlayer();
+  drawObstacles();
+  drawPowerUps();
+  drawLightning();
+  drawStatusBar();
+}
+
+// --- helpers de cor para transições suaves entre cenários ---
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  const bigint = parseInt(h, 16);
+  return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function lerpColor(hexA, hexB, t) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  return `rgb(${Math.round(lerp(a.r, b.r, t))}, ${Math.round(lerp(a.g, b.g, t))}, ${Math.round(lerp(a.b, b.b, t))})`;
+}
+
+function drawBackground() {
+  const { from, to, t } = STATE.sceneBlend;
+  const gradient = ctx.createLinearGradient(0, 0, 0, CONFIG.canvasHeight);
+  gradient.addColorStop(0, lerpColor(from.skyTop, to.skyTop, t));
+  gradient.addColorStop(1, lerpColor(from.skyBottom, to.skyBottom, t));
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, CONFIG.canvasWidth, CONFIG.canvasHeight);
+}
+
+function drawStars() {
+  const { from, t } = STATE.sceneBlend;
+  if (!from.showStars) return;
+  const alpha = 1 - t;
+  if (alpha <= 0) return;
+
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  STATE.stars.forEach(s => {
+    const twinkle = 0.5 + 0.5 * Math.sin(STATE.elapsedTime * 2 + s.phase);
+    ctx.globalAlpha = alpha * twinkle;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawCelestialBody() {
+  const { from, to } = STATE.sceneBlend;
+  const color = to.sunColor || from.sunColor;
+  if (!color) return;
+  const alpha = from.sunColor ? 1 : STATE.sceneBlend.t;
+
+  const maxScore = CONFIG.scenes[CONFIG.scenes.length - 1].threshold;
+  const progress = clamp(STATE.score / maxScore, 0, 1);
+  const arcX = 60 + progress * (CONFIG.canvasWidth - 120);
+  const arcY = 60 + (1 - Math.sin(progress * Math.PI)) * 40;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 25;
+  ctx.beginPath();
+  ctx.arc(arcX, arcY, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCityline() {
+  const { from, to, t } = STATE.sceneBlend;
+  const windowColor = lerpColor(from.gridColor, to.gridColor, t);
+  const offset = (STATE.elapsedTime * 15) % CONFIG.cityPatternWidth;
+
+  ctx.save();
+  [0, CONFIG.cityPatternWidth].forEach(loopOffset => {
+    ctx.save();
+    ctx.translate(loopOffset - offset, 0);
+    STATE.buildings.forEach(b => {
+      ctx.fillStyle = 'rgba(8, 8, 18, 0.65)';
+      ctx.fillRect(b.x, CONFIG.groundY - b.height, b.width, b.height);
+
+      ctx.fillStyle = windowColor;
+      ctx.globalAlpha = 0.5;
+      for (let wy = CONFIG.groundY - b.height + 8; wy < CONFIG.groundY - 6; wy += 14) {
+        ctx.fillRect(b.x + 6, wy, 4, 4);
+      }
+      ctx.globalAlpha = 1;
+    });
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function drawLightning() {
+  if (STATE.lightningAlpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = STATE.lightningAlpha;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, CONFIG.canvasWidth, CONFIG.canvasHeight);
+  ctx.restore();
+}
+
+function drawGrid() {
+  const { from, to, t } = STATE.sceneBlend;
+  ctx.save();
+  ctx.strokeStyle = lerpColor(from.gridColor, to.gridColor, t);
+  ctx.globalAlpha = lerp(from.gridAlpha, to.gridAlpha, t);
+  ctx.lineWidth = 1;
+  for (let x = 0; x < CONFIG.canvasWidth; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, CONFIG.canvasHeight);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGround() {
+  const { from, to, t } = STATE.sceneBlend;
+  const color = lerpColor(from.groundColor, to.groundColor, t);
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(0, CONFIG.groundY + 2);
+  ctx.lineTo(CONFIG.canvasWidth, CONFIG.groundY + 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawPlayer() {
+  const { x, y, width: w, height: h } = player;
+
+  if (STATE.activePowerUps.shield > 0) {
+    const color = CONFIG.powerUps.types.shield.color;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20;
+    ctx.lineWidth = 2;
+    roundRect(x - 4, y - 4, w + 8, h + 8, 8);
+    ctx.stroke();
+  }
+
+  // propulsor: um rastro triangular abaixo do corpo enquanto pula
+  if (player.isJumping) {
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = STATE.effective.playerColor;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, y + h);
+    ctx.lineTo(x + w - 6, y + h);
+    ctx.lineTo(x + w / 2, y + h + 8 + Math.random() * 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // corpo
+  ctx.fillStyle = STATE.effective.playerColor;
+  ctx.shadowColor = STATE.effective.playerColor;
+  ctx.shadowBlur = 16;
+  roundRect(x, y, w, h, 6);
+  ctx.fill();
+
+  // visor
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#05050a';
+  ctx.fillRect(x + 5, y + h * 0.35, w - 10, 5);
+}
+
+function drawObstacles() {
+  STATE.obstacles.forEach(obs => {
+    if (obs.type === 'drone') {
+      drawDrone(obs);
+    } else {
+      drawSpike(obs);
+    }
+  });
+}
+
+function drawSpike(obs) {
+  ctx.fillStyle = obs.color;
+  ctx.shadowColor = obs.color;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.moveTo(obs.x, obs.y + obs.height);
+  ctx.lineTo(obs.x + obs.width * 0.5, obs.y);
+  ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+  ctx.closePath();
+  ctx.fill();
+
+  // pequenas farpas internas para dar textura ao espinho
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(obs.x + obs.width * 0.5, obs.y + obs.height * 0.15);
+  ctx.lineTo(obs.x + obs.width * 0.5, obs.y + obs.height);
+  ctx.stroke();
+}
+
+function drawDrone(obs) {
+  const cx = obs.x + obs.width / 2;
+  const cy = obs.y + obs.height / 2;
+  const blink = Math.sin(STATE.elapsedTime * 6) > 0;
+
+  ctx.fillStyle = obs.color;
+  ctx.shadowColor = obs.color;
+  ctx.shadowBlur = 14;
+
+  // corpo (elipse achatada, estilo nave/drone)
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, obs.width / 2, obs.height / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // hastes laterais
+  ctx.strokeStyle = obs.color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(obs.x - 5, cy);
+  ctx.lineTo(obs.x, cy);
+  ctx.moveTo(obs.x + obs.width, cy);
+  ctx.lineTo(obs.x + obs.width + 5, cy);
+  ctx.stroke();
+
+  // sensor central piscando
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = blink ? '#ffffff' : '#05050a';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawPowerUps() {
+  STATE.powerUps.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(p.x + p.width / 2, p.y + p.height / 2, p.width / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#05050a';
+    ctx.font = '14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.icon, p.x + p.width / 2, p.y + p.height / 2 + 1);
+  });
+}
+
+function drawStatusBar() {
+  let offsetX = 10;
+  ctx.font = '12px Courier New';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  for (const key in STATE.activePowerUps) {
+    const remaining = STATE.activePowerUps[key];
+    if (remaining > 0) {
+      const cfg = CONFIG.powerUps.types[key];
+      ctx.fillStyle = cfg.color;
+      ctx.shadowColor = cfg.color;
+      ctx.shadowBlur = 8;
+      ctx.fillText(`${cfg.icon} ${key.toUpperCase()} ${(remaining / 1000).toFixed(1)}s`, offsetX, 10);
+      ctx.shadowBlur = 0;
+      offsetX += 140;
+    }
+  }
+}
+
+// [EXTENSÃO] crie novas funções draw*() para novos elementos visuais
+// (partículas, background parallax, etc).
+
+// ---------- 7. GAME LOOP ----------
+function gameLoop(timestamp) {
+  if (!STATE.running) return;
+
+  if (!STATE.lastFrameTime) STATE.lastFrameTime = timestamp;
+  const deltaMs = timestamp - STATE.lastFrameTime;
+  STATE.lastFrameTime = timestamp;
+
+  updatePlayer(deltaMs);
+  updateObstacles(deltaMs);
+  if (!STATE.running) return; // pode ter mudado dentro de updateObstacles (colisão)
+
+  updatePowerUps(deltaMs);
+  updatePowerUpTimers(deltaMs);
+  updateSpawning(timestamp);
+  updateScore(deltaMs);
+  STATE.sceneBlend = getSceneBlend(STATE.score);
+  updateWeather(deltaMs);
+  checkAchievements();
+
+  if (STATE.score >= STATE.effective.targetScore) {
+    winGame();
+    return;
+  }
+
+  render();
+  updateHUD();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ---------- 8. UI BINDINGS ----------
+const overlay = document.getElementById('overlay');
+const screens = document.querySelectorAll('.screen');
+const scoreDisplay = document.getElementById('score-display');
+const sceneDisplay = document.getElementById('scene-display');
+const bestDisplay = document.getElementById('best-display');
+const gameOverText = document.getElementById('gameover-text');
+const victoryText = document.getElementById('victory-text');
+const menuCharName = document.getElementById('menu-char-name');
+const menuDiffName = document.getElementById('menu-diff-name');
+const menuTargetScore = document.getElementById('menu-target-score');
+const characterListEl = document.getElementById('character-list');
+const difficultyListEl = document.getElementById('difficulty-list');
+const achievementListEl = document.getElementById('achievement-list');
+const achievementsCountEl = document.getElementById('menu-achievements-count');
+const achievementToast = document.getElementById('achievement-toast');
+let achievementToastTimeout = null;
+
+function updateHUD() {
+  scoreDisplay.textContent = `SCORE: ${STATE.score}`;
+  bestDisplay.textContent = `RECORDE: ${STATE.best}`;
+  if (STATE.sceneBlend) {
+    const { from, to, t } = STATE.sceneBlend;
+    sceneDisplay.textContent = t < 0.5 ? from.name : to.name;
+  }
+}
+
+// Troca qual .screen fica visível dentro do #overlay.
+function showScreen(name) {
+  screens.forEach(s => s.classList.toggle('hidden', s.id !== `screen-${name}`));
+  STATE.uiScreen = name;
+}
+
+function updateMenuLabels() {
+  menuCharName.textContent = CONFIG.characters[STATE.selectedCharacter].name;
+  const diff = CONFIG.difficulties[STATE.selectedDifficulty];
+  menuDiffName.textContent = diff.name;
+  menuTargetScore.textContent = diff.targetScore;
+}
+
+// Gera os cards de personagem a partir de CONFIG.characters — adicionar um
+// personagem novo em CONFIG já faz ele aparecer aqui automaticamente.
+function renderCharacterList() {
+  characterListEl.innerHTML = '';
+  Object.values(CONFIG.characters).forEach(ch => {
+    const card = document.createElement('div');
+    card.className = 'character-card' + (STATE.selectedCharacter === ch.id ? ' selected' : '');
+    card.style.color = ch.color;
+    card.style.borderColor = ch.color;
+    card.innerHTML = `<h3>${ch.name}</h3><p>${ch.description}</p>`;
+    card.addEventListener('click', () => {
+      STATE.selectedCharacter = ch.id;
+      renderCharacterList();
+      updateMenuLabels();
+      showScreen('menu');
+    });
+    characterListEl.appendChild(card);
+  });
+}
+
+function renderDifficultyList() {
+  difficultyListEl.innerHTML = '';
+  Object.values(CONFIG.difficulties).forEach(d => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'difficulty-btn' + (STATE.selectedDifficulty === d.id ? ' selected' : '');
+    btn.textContent = `${d.name} — ${d.description} (Meta: ${d.targetScore} pts)`;
+    btn.addEventListener('click', () => {
+      STATE.selectedDifficulty = d.id;
+      renderDifficultyList();
+      updateMenuLabels();
+      showScreen('menu');
+    });
+    difficultyListEl.appendChild(btn);
+  });
+}
+
+// Lista todas as conquistas de CONFIG.achievements — bloqueadas aparecem
+// com cadeado, mas a descrição continua visível para orientar o jogador.
+function renderAchievementsList() {
+  achievementListEl.innerHTML = '';
+  CONFIG.achievements.forEach(ach => {
+    const unlocked = STATE.unlockedAchievements.includes(ach.id);
+    const card = document.createElement('div');
+    card.className = 'achievement-card' + (unlocked ? ' unlocked' : '');
+    card.innerHTML = `
+      <span class="achievement-icon">${unlocked ? ach.icon : '🔒'}</span>
+      <div>
+        <h3>${ach.name}</h3>
+        <p>${ach.description}</p>
+      </div>
+    `;
+    achievementListEl.appendChild(card);
+  });
+}
+
+function updateAchievementSummary() {
+  achievementsCountEl.textContent = `${STATE.unlockedAchievements.length}/${CONFIG.achievements.length}`;
+}
+
+function showAchievementToast(ach) {
+  achievementToast.innerHTML = `
+    <span class="toast-icon">${ach.icon}</span>
+    <div><strong>CONQUISTA DESBLOQUEADA</strong>${ach.name}</div>
+  `;
+  achievementToast.classList.add('show');
+  clearTimeout(achievementToastTimeout);
+  achievementToastTimeout = setTimeout(() => achievementToast.classList.remove('show'), 3500);
+}
+
+document.getElementById('btn-play').addEventListener('click', startGame);
+document.getElementById('btn-open-characters').addEventListener('click', () => showScreen('characters'));
+document.getElementById('btn-open-difficulty').addEventListener('click', () => showScreen('difficulty'));
+document.getElementById('btn-open-achievements').addEventListener('click', () => {
+  renderAchievementsList();
+  showScreen('achievements');
+});
+document.getElementById('btn-open-credits').addEventListener('click', () => showScreen('credits'));
+document.querySelectorAll('.back-btn').forEach(btn => {
+  btn.addEventListener('click', () => showScreen(btn.dataset.back));
+});
+document.getElementById('btn-retry').addEventListener('click', startGame);
+document.getElementById('btn-gameover-menu').addEventListener('click', () => showScreen('menu'));
+document.getElementById('btn-victory-retry').addEventListener('click', startGame);
+document.getElementById('btn-victory-menu').addEventListener('click', () => showScreen('menu'));
+
+// Estado inicial: monta as listas, aplica os rótulos e mostra o menu
+renderCharacterList();
+renderDifficultyList();
+updateMenuLabels();
+updateAchievementSummary();
+showScreen('menu');
+updateHUD();
+
+// [EXTENSÃO] adicione novos estados de UI (ex: tela de pausa) seguindo
+// o mesmo padrão: uma nova <div class="screen" id="screen-nome"> + showScreen('nome').
+
+function startGame() {
+  STATE.effective = computeEffectiveConfig(STATE.selectedCharacter, STATE.selectedDifficulty);
+
+  STATE.stats.gamesPlayed++;
+  if (!STATE.stats.charactersUsed.includes(STATE.selectedCharacter)) {
+    STATE.stats.charactersUsed.push(STATE.selectedCharacter);
+  }
+  saveStats();
+  checkAchievements();
+
+  STATE.running = true;
+  STATE.gameOver = false;
+  STATE.score = 0;
+  STATE.elapsedTime = 0;
+  STATE.obstacles = [];
+  STATE.powerUps = [];
+  STATE.activePowerUps = { shield: STATE.effective.startShieldMs, slowmo: 0 };
+  STATE.currentSpawnInterval = STATE.effective.spawnIntervalStart;
+  STATE.lastSpawnTime = performance.now();
+  STATE.lastFrameTime = 0;
+  STATE.sceneBlend = getSceneBlend(0);
+  STATE.lightningAlpha = 0;
+  STATE.lightningTimer = 2500;
+
+  resetPlayer();
+  overlay.classList.add('hidden');
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  STATE.running = false;
+  STATE.gameOver = true;
+
+  if (STATE.score > STATE.best) {
+    STATE.best = STATE.score;
+    saveBest(STATE.best);
+  }
+  STATE.stats.maxScore = Math.max(STATE.stats.maxScore, STATE.score);
+  saveStats();
+  checkAchievements();
+  updateHUD();
+
+  gameOverText.textContent = `Você sobreviveu e marcou ${STATE.score} pontos. Tente superar o recorde de ${STATE.best}.`;
+  showScreen('gameover');
+  overlay.classList.remove('hidden');
+}
+
+function winGame() {
+  STATE.running = false;
+  STATE.gameOver = true;
+
+  if (STATE.score > STATE.best) {
+    STATE.best = STATE.score;
+    saveBest(STATE.best);
+  }
+  STATE.stats.maxScore = Math.max(STATE.stats.maxScore, STATE.score);
+  if (!STATE.stats.difficultiesCompleted.includes(STATE.selectedDifficulty)) {
+    STATE.stats.difficultiesCompleted.push(STATE.selectedDifficulty);
+  }
+  saveStats();
+  checkAchievements();
+  updateHUD();
+
+  const diff = CONFIG.difficulties[STATE.selectedDifficulty];
+  victoryText.textContent = `Você dominou o modo ${diff.name} com ${STATE.score} pontos — meta de ${diff.targetScore} concluída! Tente uma dificuldade maior para o próximo desafio.`;
+  showScreen('victory');
+  overlay.classList.remove('hidden');
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+</script>
+</body>
+</html>
