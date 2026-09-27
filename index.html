@@ -429,21 +429,31 @@ const CONFIG = {
         floating: false        // fica no chão, precisa pular por cima
       },
       drone: {
-        color: '#f9ff00',
+        color: '#f9ff00',        // cor padrão (fallback) — as variantes abaixo sobrescrevem
         minWidth: 34, maxWidth: 34,
         minHeight: 16, maxHeight: 16,
         floating: true,        // flutua no ar — pular pode causar colisão
-        floatHeight: 65        // distância do chão até a base do drone
+        floatHeight: 65,       // distância do chão até a base do drone
+        // Cada drone sorteia uma dessas variantes de velocidade ao nascer.
+        // A cor muda junto, funcionando como pista visual: azul = lento,
+        // amarelo = normal, laranja = rápido.
+        // [EXTENSÃO] adicione outra variante aqui — ela entra no sorteio sozinha.
+        speedVariants: [
+          { label: 'lento', mult: 0.7, color: '#4dd2ff' },
+          { label: 'normal', mult: 1, color: '#f9ff00' },
+          { label: 'rápido', mult: 1.45, color: '#ff6b35' }
+        ]
       },
       sentinela: {
         color: '#ff2b4d',
         minWidth: 26, maxWidth: 26,
         minHeight: 26, maxHeight: 26,
         floating: true,
-        floatHeight: 100,        // altura BASE (centro) da oscilação
+        floatHeight: 70,         // altura BASE (centro) da oscilação
         oscillate: true,         // sobe e desce em onda enquanto avança
-        oscillateAmplitude: 35,  // px para cima/baixo a partir da base
+        oscillateAmplitude: 70,  // igual à base → desce até tocar o chão e volta
         oscillateSpeed: 2.2,     // velocidade da onda (rad/s)
+        speedMultiplier: 1.5,    // 50% mais rápida que o obstáculo-base
         exclusiveToDifficulty: 'dificil' // só aparece nessa dificuldade
       }
     }
@@ -830,6 +840,17 @@ function spawnObstacle() {
     ? CONFIG.groundY - typeCfg.floatHeight - h
     : CONFIG.groundY - h;
 
+  // Alguns tipos têm variantes de velocidade (ex: drone lento/normal/
+  // rápido) — cada variante também define sua própria cor, como pista
+  // visual. Tipos sem variantes usam um multiplicador fixo (ou 1).
+  let speedMultiplier = typeCfg.speedMultiplier || 1;
+  let color = typeCfg.color;
+  if (typeCfg.speedVariants) {
+    const variant = typeCfg.speedVariants[randRange(0, typeCfg.speedVariants.length - 1)];
+    speedMultiplier = variant.mult;
+    color = variant.color;
+  }
+
   STATE.obstacles.push({
     type: typeName,
     x: CONFIG.canvasWidth,
@@ -838,11 +859,12 @@ function spawnObstacle() {
     phase: Math.random() * Math.PI * 2, // fase aleatória — cada um oscila diferente
     width: w,
     height: h,
-    color: typeCfg.color,
+    color,
+    speedMultiplier,
     oscillate: !!typeCfg.oscillate,
     oscillateAmplitude: typeCfg.oscillateAmplitude || 0,
     oscillateSpeed: typeCfg.oscillateSpeed || 0,
-    speed: STATE.effective.obstacleBaseSpeed + STATE.elapsedTime * STATE.effective.speedIncreasePerSecond
+    speed: (STATE.effective.obstacleBaseSpeed + STATE.elapsedTime * STATE.effective.speedIncreasePerSecond) * speedMultiplier
   });
 
   // [EXTENSÃO] adicione uma nova entrada em CONFIG.obstacles.types
@@ -1391,7 +1413,8 @@ function drawSpike(obs) {
 function drawDrone(obs) {
   const cx = obs.x + obs.width / 2;
   const cy = obs.y + obs.height / 2;
-  const blink = Math.sin(STATE.elapsedTime * 6) > 0;
+  // pisca na frequência da própria velocidade: drone rápido pisca mais rápido
+  const blink = Math.sin(STATE.elapsedTime * 6 * obs.speedMultiplier) > 0;
 
   ctx.fillStyle = obs.color;
   ctx.shadowColor = obs.color;
